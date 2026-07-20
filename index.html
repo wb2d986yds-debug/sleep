@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- PWA設定（ホーム追加時に全画面で漆黒表示） -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SomnAI">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="SomnAI — AIがあなたの睡眠を自律調律するプレミアム睡眠パートナー">
+    <title>SomnAI — Your Premium AI Sleep Partner</title>
+
+    <!-- 正規のPWAマニフェスト（data URIはブラウザ対応が不安定なため外部ファイル化） -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23000000'/><circle cx='256' cy='256' r='140' fill='none' stroke='%237c8ef2' stroke-width='12' opacity='0.3'/><circle cx='256' cy='256' r='165' fill='none' stroke='%237c8ef2' stroke-width='12' opacity='0.12'/><path d='M210 220C210 285 263 338 328 338C338 285 295 220 210 220Z' fill='%237c8ef2'/></svg>">
+
+    <!-- Tailwind CSS (CDN: プロトタイプ用途。本番はCLIビルド推奨 → REVIEW.md参照) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        sleep: {
+                            50: '#f5f6fd', 100: '#eceffd', 200: '#dde2fc', 300: '#c2ccfa',
+                            400: '#a1b0f7', 500: '#7c8ef2', 600: '#5867ec', 700: '#4653dd',
+                            800: '#3a44b9', 900: '#060714', 950: '#010103'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <!-- Lucide Icons（バージョン固定でCDN破壊的変更を防止） -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body id="app-body" class="text-slate-100 h-screen w-screen overflow-hidden flex flex-col justify-between pb-6 transition-colors duration-1000 bg-sleep-950">
+
+    <!-- アンビエント背景照明 -->
+    <div id="day-glows" class="pointer-events-none" aria-hidden="true">
+        <div class="fixed top-[-25%] left-[-25%] w-[100vw] h-[100vw] rounded-full bg-indigo-950/20 blur-[150px] z-0"></div>
+        <div class="fixed bottom-[-25%] right-[-25%] w-[100vw] h-[100vw] rounded-full bg-purple-950/15 blur-[150px] z-0"></div>
+    </div>
+
+    <!-- ==================== 初回アセスメントモーダル ==================== -->
+    <div id="setup-modal" class="hidden fixed inset-0 z-[60] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-6 space-y-5">
+            <header class="text-center">
+                <div class="w-12 h-12 rounded-full bg-indigo-600/20 text-indigo-300 flex items-center justify-center mx-auto mb-2">
+                    <i data-lucide="sparkles" class="w-6 h-6 animate-pulse"></i>
+                </div>
+                <h3 id="setup-title" class="text-lg font-bold text-white">自律睡眠チューニング設定</h3>
+                <p class="text-xs text-slate-400 mt-1">あなたに合わせた最適な睡眠プログラムを自動構築します</p>
+            </header>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="q-sleep-hours" class="block text-xs font-bold text-slate-300 mb-1.5">Q1. あなたの希望する平均睡眠時間は？</label>
+                    <select id="q-sleep-hours" class="w-full text-sm bg-sleep-900 text-white rounded-xl border border-white/10 p-3.5 focus:outline-none focus:border-indigo-500">
+                        <option value="5">5時間（短時間で脳を最大限に回復）</option>
+                        <option value="6">6時間（効率的なショートスリープ）</option>
+                        <option value="7" selected>7時間（バランスの良いすっきり睡眠）</option>
+                        <option value="8">8時間（深い休息と完全なリカバリー）</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="q-wake-time" class="block text-xs font-bold text-slate-300 mb-1.5">Q2. 起床したい希望時刻は？</label>
+                    <input id="q-wake-time" type="time" value="07:00" class="w-full text-sm bg-sleep-900 text-white rounded-xl border border-white/10 p-3.5 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="q-target" class="block text-xs font-bold text-slate-300 mb-1.5">Q3. 最も解決したい睡眠の悩みは？</label>
+                    <select id="q-target" class="w-full text-sm bg-sleep-900 text-white rounded-xl border border-white/10 p-3.5 focus:outline-none focus:border-indigo-500 font-semibold">
+                        <option value="recovery" selected>🌱 疲れやストレスをしっかり解消したい</option>
+                        <option value="study">📚 明日への脳内リセット・集中力の向上</option>
+                        <option value="deep">🌙 夜間の途切れを防ぎ、深く眠り続けたい</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="button" data-action="finish-assessment" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/30 min-h-[44px]">
+                AI睡眠調律をスタートする
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== メイン ==================== -->
+    <main class="w-full max-w-md mx-auto px-4 pt-6 z-10 flex-1 flex flex-col justify-start overflow-hidden">
+
+        <!-- 【DAY MODE UI】 -->
+        <div id="day-view" class="flex flex-col gap-3 flex-1 overflow-hidden animate-fade-in">
+
+            <header class="flex justify-between items-center mb-1">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-400">SomnAI Autopilot Partner</span>
+                    <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-sleep-200 to-indigo-300 bg-clip-text text-transparent">SomnAI</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="bg-indigo-600/10 border border-indigo-500/20 rounded-full px-3 py-1 flex items-center gap-1 shadow-sm" title="連続利用日数">
+                        <i data-lucide="flame" class="w-4 h-4 text-orange-400 fill-orange-400"></i>
+                        <span id="streak-badge" class="text-xs font-bold text-slate-200">1日目</span>
+                    </div>
+                    <div class="bg-purple-600/10 border border-purple-500/20 rounded-full px-3 py-1 flex items-center gap-1 shadow-sm" title="睡眠改善レベル">
+                        <i data-lucide="award" class="w-4 h-4 text-purple-400"></i>
+                        <span id="level-badge" class="text-xs font-bold text-purple-300">Lv.1</span>
+                    </div>
+                    <button type="button" data-action="open-settings" aria-label="設定を開く" class="w-9 h-9 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors active:scale-95">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 1. ホームタブ -->
+            <section id="tab-home" class="tab-content flex-1 flex flex-col gap-3 overflow-y-auto no-scrollbar pb-24" aria-label="ホーム">
+
+                <!-- 朝のチェックインカード -->
+                <article id="morning-checkin-card" class="glass-panel rounded-3xl p-5 border border-amber-500/20 hidden shrink-0 animate-fade-in">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                            <i data-lucide="sun" class="w-[18px] h-[18px]"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold text-amber-400 uppercase tracking-widest block">朝のふりかえり</span>
+                            <h3 class="text-sm font-bold text-white">今朝の目覚めの調子はいかがですか？</h3>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3 leading-relaxed">AIがあなたの評価を学習し、今夜の音響レシピを自律調節します。</p>
+
+                    <div class="space-y-2.5 mb-3.5">
+                        <div class="flex justify-between items-center bg-white/5 p-3 rounded-2xl border border-white/5">
+                            <span class="text-slate-200 text-xs font-semibold">⭐ 睡眠全体の満足度</span>
+                            <div class="flex gap-1.5" id="star-satisfaction" role="radiogroup" aria-label="睡眠満足度（5段階）">
+                                <!-- JSで星ボタンを生成 -->
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="目覚めの評価">
+                            <button type="button" data-action="set-feedback" data-metric="wakeup" data-value="good" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">⏰ スッキリ起床</button>
+                            <button type="button" data-action="set-feedback" data-metric="wakeup" data-value="soso" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">💤 普通の目覚め</button>
+                            <button type="button" data-action="set-feedback" data-metric="wakeup" data-value="bad" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">🥱 まだ眠い</button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="疲労回復の評価">
+                            <button type="button" data-action="set-feedback" data-metric="recovery" data-value="good" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">🔋 疲れが取れた</button>
+                            <button type="button" data-action="set-feedback" data-metric="recovery" data-value="soso" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">🪫 少し体が重い</button>
+                            <button type="button" data-action="set-feedback" data-metric="recovery" data-value="bad" class="feedback-btn py-2.5 rounded-xl text-xs bg-white/5 border border-white/5 text-slate-300 hover:border-indigo-500 transition-all font-semibold">🍂 疲労感が残る</button>
+                        </div>
+                    </div>
+
+                    <button type="button" data-action="submit-feedback" class="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold py-2.5 rounded-xl transition-all min-h-[44px]">
+                        フィードバックをAIに送信して最適化
+                    </button>
+                </article>
+
+                <!-- 睡眠改善レベル進捗 -->
+                <section class="glass-panel rounded-3xl p-[18px] relative overflow-hidden shrink-0 border border-purple-500/10" aria-label="睡眠改善レベル">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span id="level-title-text" class="text-xs font-bold text-purple-300">睡眠パートナーシップの深度</span>
+                        <span id="level-exp-text" class="text-[11px] font-bold text-slate-400">EXP 10 / 100</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div id="level-progress-bar" class="h-full bg-gradient-to-r from-purple-500 to-indigo-500 w-[10%] transition-all duration-500"></div>
+                    </div>
+                </section>
+
+                <!-- AIパートナーからの手紙 -->
+                <section class="glass-panel rounded-3xl p-5 relative overflow-hidden shrink-0" aria-label="AIパートナーからのメッセージ">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-300 tracking-wider">AIパートナーからの手紙</span>
+                        <span class="text-xs font-bold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-full" id="dashboard-score-text">分析完了</span>
+                    </div>
+                    <div class="border-t border-white/5 pt-3">
+                        <p id="day-ai-speech-text" class="text-xs text-slate-200 leading-relaxed font-medium">「お疲れさまです。今日はどんな一日でしたか？あなたが心地よく眠りにつけるよう、今夜の最適プランを用意しました。まずはおやすみ前にチャットでお話ししましょう。」</p>
+                    </div>
+                </section>
+
+                <!-- 今夜のAI睡眠プラン -->
+                <section class="glass-panel rounded-3xl p-5 border border-indigo-500/15 shrink-0" aria-label="今夜の睡眠プラン">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-[26px] h-[26px] rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-300">
+                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            </div>
+                            <span class="text-xs font-bold text-indigo-200 tracking-wide">AI最適化睡眠プログラム</span>
+                        </div>
+                        <span id="plan-source-badge" class="text-[9px] bg-white/5 border border-white/10 text-slate-400 px-2 py-0.5 rounded font-mono">自動推定</span>
+                    </div>
+                    <p id="autopilot-description-text" class="text-xs text-slate-300 leading-relaxed">「初回アセスメントに基づき、心地よい春雨の音と、深く眠るためのさざなみ脳波同調を構成しています。」</p>
+
+                    <div id="ai-change-log-container" class="mt-3 pt-3 border-t border-white/5 hidden">
+                        <span class="text-[10px] text-indigo-300 font-bold block mb-1">💡 AI自動調律ログ（最適化の詳細）:</span>
+                        <div id="ai-change-log-text" class="text-xs text-slate-400 leading-relaxed italic"></div>
+                    </div>
+                </section>
+
+                <!-- 出力デバイスモード -->
+                <section class="glass-panel rounded-3xl p-[18px] shrink-0 border border-white/5" aria-label="出力デバイスモード設定">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <i data-lucide="volume-2" class="w-[18px] h-[18px] text-indigo-400"></i>
+                            出力デバイスモード設定
+                        </span>
+                        <span id="output-mode-badge" class="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded">スピーカー(iPad)推奨</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button type="button" id="btn-out-speaker" data-action="set-output" data-mode="speaker" aria-pressed="true" class="output-mode-btn is-active py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 min-h-[44px]">
+                            <i data-lucide="tablet" class="w-4 h-4"></i>
+                            スピーカー (iPad/スマホ)
+                        </button>
+                        <button type="button" id="btn-out-headphone" data-action="set-output" data-mode="headphone" aria-pressed="false" class="output-mode-btn py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 min-h-[44px]">
+                            <i data-lucide="headphones" class="w-4 h-4"></i>
+                            イヤホン (バイノーラル)
+                        </button>
+                    </div>
+                </section>
+
+                <!-- おやすみ開始コンソール -->
+                <section class="glass-panel rounded-3xl p-5 flex flex-col items-center justify-center shrink-0" aria-label="おやすみ開始">
+                    <button type="button" data-action="start-sleep" class="w-36 h-36 rounded-full bg-gradient-to-tr from-sleep-600 to-indigo-700 hover:from-sleep-500 hover:to-indigo-600 border border-sleep-400/30 flex flex-col items-center justify-center shadow-xl active:scale-95 transition-all text-white font-bold relative">
+                        <div class="absolute inset-0 rounded-full border border-indigo-400/20 pulse-ring-active pointer-events-none" aria-hidden="true"></div>
+                        <div class="w-10 h-10 rounded-full bg-indigo-950/60 flex items-center justify-center text-indigo-300 mb-1 z-10">
+                            <i data-lucide="moon" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-bold tracking-widest z-10">おやすみ開始</span>
+                        <span class="text-[9px] text-sleep-200 mt-1 z-10">タップして睡眠調律へ</span>
+                    </button>
+
+                    <div class="w-full mt-4 bg-white/5 p-2 rounded-2xl flex items-center justify-between border border-white/5 text-xs">
+                        <label for="input-alarm-time" class="flex items-center gap-1.5">
+                            <i data-lucide="alarm-clock" class="w-3.5 h-3.5 text-indigo-300"></i>
+                            <span class="font-bold text-slate-300 text-xs">スマート目覚まし起床</span>
+                        </label>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[9px] bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded">起床時刻に自動終了</span>
+                            <input id="input-alarm-time" type="time" value="07:00" class="bg-sleep-950 border border-white/10 rounded-lg p-1.5 px-2 text-white font-mono focus:outline-none focus:border-indigo-500 text-xs min-h-[36px]">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- マニュアルミキサー呼び出し -->
+                <button type="button" data-action="open-mixer" class="w-full py-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center gap-2 text-xs text-slate-300 hover:text-white transition-all active:scale-[0.98] shrink-0 min-h-[44px]">
+                    <i data-lucide="sliders-horizontal" class="w-[18px] h-[18px]"></i>
+                    <span class="font-semibold">マニュアル音響微調整をひらく</span>
+                </button>
+
+                <!-- AI自動調律システムログ -->
+                <section class="glass-panel rounded-3xl p-3.5 border border-indigo-500/10 text-[10px] shrink-0 font-mono" aria-label="AI調律ログ">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="font-bold text-slate-400 uppercase tracking-widest">AI自動調律システムログ</span>
+                        <span class="text-[8px] text-indigo-400 font-bold">AI Self-Learning Log</span>
+                    </div>
+                    <div class="space-y-1 text-slate-400 leading-normal" id="ai-thought-log">
+                        <div>[--:--] 初期化完了。カウンセリング結果を今夜のプランに反映します。</div>
+                    </div>
+                </section>
+            </section>
+
+            <!-- 2. AIチャットタブ -->
+            <section id="tab-coach" class="tab-content hidden flex-1 flex flex-col gap-3 overflow-hidden pb-24" aria-label="AIおやすみカウンセリング">
+                <div class="glass-panel rounded-3xl p-[18px] flex flex-col gap-3 flex-1 overflow-hidden">
+
+                    <div class="bg-indigo-950/40 border border-indigo-500/20 rounded-2xl p-3.5 shrink-0">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-1.5">
+                                <i data-lucide="clipboard-list" class="w-3.5 h-3.5 text-indigo-400"></i>
+                                <span class="text-xs font-bold text-indigo-200">AIおやすみカウンセリング</span>
+                            </div>
+                            <span id="counsel-progress-text" class="text-[10px] text-indigo-400 font-bold">1 / 4</span>
+                        </div>
+                        <div id="counseling-question-box" class="space-y-2">
+                            <p id="counsel-q-text" class="text-xs text-white font-semibold">Q. 今日の疲労感はどのくらいですか？</p>
+                            <div id="counsel-options" class="grid grid-cols-2 gap-2"><!-- JSで動的生成 --></div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 bg-white/5 rounded-2xl p-4 overflow-y-auto no-scrollbar space-y-2.5 text-xs border border-white/5" id="counseling-box" aria-live="polite">
+                        <div class="flex items-start gap-2 max-w-[85%] animate-fade-in">
+                            <div class="w-[26px] h-[26px] rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 shrink-0">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                            </div>
+                            <div class="bg-indigo-950/60 p-3 rounded-2xl text-slate-200 leading-normal font-medium">
+                                「今日もお疲れさまでした。今日のココロとカラダの状態を少し教えてください。あなただけの睡眠波形と自然音を自動調律します！」
+                            </div>
+                        </div>
+                        <div id="counseling-chat-history" class="space-y-2.5"></div>
+                    </div>
+
+                    <div class="flex gap-2 shrink-0">
+                        <input id="input-counseling-text" type="text" placeholder="「今日は疲れた」「眠れない」など..." aria-label="AIへのメッセージ" class="flex-1 bg-sleep-950 border border-white/10 rounded-xl px-4 text-xs focus:outline-none focus:border-indigo-500 text-white min-h-[44px]">
+                        <button type="button" data-action="send-chat" aria-label="送信" class="w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white shrink-0 active:scale-95 transition-all">
+                            <i data-lucide="send" class="w-[18px] h-[18px]"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 睡眠分析タブ -->
+            <section id="tab-analytics" class="tab-content hidden flex-1 flex flex-col gap-3 overflow-y-auto no-scrollbar pb-24 animate-fade-in" aria-label="睡眠分析">
+
+                <section class="glass-panel rounded-3xl p-[18px] shrink-0" aria-label="生活習慣の相関分析">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-[26px] h-[26px] bg-indigo-500/10 border border-indigo-500/20 rounded-full flex items-center justify-center text-indigo-300">
+                            <i data-lucide="brain-circuit" class="w-4 h-4"></i>
+                        </div>
+                        <span class="text-xs font-bold text-indigo-200">AIによる生活習慣の相関分析</span>
+                    </div>
+                    <p id="long-term-analysis-text" class="text-xs text-slate-300 leading-relaxed font-medium">「データ分析中... 履歴がたまるほど詳細な傾向レポートに進化します。」</p>
+                </section>
+
+                <section class="glass-panel rounded-3xl p-[18px] shrink-0" aria-label="睡眠メトリクス">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2.5">睡眠ジャーナルメトリクス</span>
+                    <div class="grid grid-cols-2 gap-2.5 mb-3.5">
+                        <div class="glass-panel-light p-3 rounded-2xl">
+                            <span class="text-[10px] text-slate-400 block font-bold">睡眠不足の蓄積（負債）</span>
+                            <div id="calc-debt" class="text-base font-bold text-white mt-0.5">0.0時間</div>
+                        </div>
+                        <div class="glass-panel-light p-3 rounded-2xl">
+                            <span class="text-[10px] text-slate-400 block font-bold">睡眠習慣の規則性</span>
+                            <div id="calc-regularity" class="text-base font-bold text-emerald-400 mt-0.5 font-mono">--%</div>
+                        </div>
+                        <div class="glass-panel-light p-3 rounded-2xl">
+                            <span class="text-[10px] text-slate-400 block font-bold">平均の睡眠効率</span>
+                            <div id="calc-efficiency" class="text-base font-bold text-indigo-300 mt-0.5 font-mono">--%</div>
+                        </div>
+                        <div class="glass-panel-light p-3 rounded-2xl">
+                            <span class="text-[10px] text-slate-400 block font-bold">平均睡眠時間</span>
+                            <div id="calc-avg-duration" class="text-base font-bold text-purple-300 mt-0.5 font-mono">--時間</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel-light p-4 rounded-2xl">
+                        <span class="text-xs font-bold text-slate-300 block mb-3">直近7日間の睡眠スコア推移</span>
+                        <div class="h-32">
+                            <canvas id="analytics-chart" class="w-full h-full" role="img" aria-label="直近7日間の睡眠スコア棒グラフ"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="glass-panel rounded-3xl p-[18px] shrink-0" aria-label="睡眠ログ履歴">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">睡眠ログ履歴</span>
+                    <div id="journal-list" class="space-y-2.5"><!-- JSで動的生成 --></div>
+                </section>
+            </section>
+        </div>
+
+        <!-- ==================== 【NIGHT MODE UI（OLED漆黒）】 ==================== -->
+        <div id="night-view" class="hidden flex-1 flex flex-col justify-between items-center py-6 relative min-h-[75vh] animate-fade-in">
+
+            <div class="flex flex-col items-center gap-1.5 text-center mt-4">
+                <span class="text-[10px] text-indigo-500 font-bold tracking-widest font-mono">AI SLOW-WAVE TUNING ACTIVE</span>
+                <span id="output-indicator-text" class="text-[9px] text-slate-500 font-mono uppercase">Output: Speaker Mode</span>
+                <span id="alarm-indicator-text" class="text-[9px] text-slate-600 font-mono"></span>
+            </div>
+
+            <!-- 呼吸ガイド -->
+            <div class="flex-1 flex flex-col items-center justify-center my-6">
+                <div class="relative w-48 h-44 flex items-center justify-center">
+                    <div id="breath-glow" class="absolute w-32 h-32 rounded-full bg-indigo-500/20 blur-3xl" aria-hidden="true"></div>
+                    <div id="breath-ring-outer" class="absolute w-24 h-24 rounded-full border border-indigo-400/20 flex items-center justify-center breath-ring">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-950 to-indigo-900 border border-indigo-500/35 flex flex-col items-center justify-center shadow-lg shadow-indigo-500/10">
+                            <span id="breath-guide-text" class="text-xs font-bold text-indigo-300 tracking-wider">息を吸う</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 font-medium tracking-wide max-w-[200px] text-center leading-relaxed mt-2">
+                    光の輪の広がり（吸う）と、縮み（吐く）に合わせてゆっくり深呼吸を行ってください
+                </p>
+            </div>
+
+            <!-- 就寝時ボリューム -->
+            <div class="w-full max-w-[280px] space-y-2 mb-4">
+                <div class="flex justify-between items-center text-[10px] text-slate-700 font-mono">
+                    <label for="night-master-volume">おやすみ音量</label>
+                    <span id="night-vol-tag">15%</span>
+                </div>
+                <input id="night-master-volume" type="range" min="0" max="1" step="0.01" value="0.15" aria-label="おやすみ音量" class="w-full accent-slate-700 bg-slate-900 appearance-none h-1.5 rounded">
+            </div>
+
+            <!-- 長押し起床ボタン -->
+            <div class="flex flex-col items-center gap-2 mb-6">
+                <button type="button" id="btn-abort-sleep" class="px-8 py-3 rounded-full bg-red-950/20 border border-red-500/10 text-red-500/40 hover:text-red-400 active:scale-95 transition-all text-xs font-bold tracking-widest min-h-[44px]">
+                    長押しして起床
+                </button>
+                <div class="w-full h-1 bg-slate-900 rounded-full overflow-hidden max-w-[120px]">
+                    <div id="abort-progress" class="h-full bg-red-600 w-0 transition-all duration-75"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== 設定ボトムシート ==================== -->
+    <div id="sheet-overlay" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity" data-action="close-settings"></div>
+    <div id="settings-sheet" class="bottom-sheet fixed bottom-0 inset-x-0 z-50 glass-panel rounded-t-[32px] p-6 pb-12 max-w-md mx-auto flex flex-col gap-4 max-h-[85vh] overflow-y-auto no-scrollbar" role="dialog" aria-modal="true" aria-label="システム詳細設定">
+        <button type="button" class="w-12 h-1.5 bg-white/20 rounded-full mx-auto -mt-2 mb-2" data-action="close-settings" aria-label="設定を閉じる"></button>
+
+        <div class="flex justify-between items-center">
+            <h3 class="text-base font-bold text-white">SomnAI システム詳細設定</h3>
+            <button type="button" data-action="close-settings" aria-label="閉じる" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- プロフィール設定 -->
+        <div class="space-y-3.5 border-b border-white/5 pb-4">
+            <span class="text-xs font-bold text-indigo-300 uppercase block tracking-wider">プロフィール設定</span>
+            <div>
+                <label for="set-sleep-hours" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">希望平均睡眠時間</label>
+                <select id="set-sleep-hours" class="w-full text-sm bg-sleep-900 text-white rounded-xl border border-white/10 p-2.5 focus:outline-none focus:border-indigo-500">
+                    <option value="5">5時間（短時間で脳を最大限に回復）</option>
+                    <option value="6">6時間（ショートスリープ）</option>
+                    <option value="7" selected>7時間（おすすめバランス）</option>
+                    <option value="8">8時間（充実のレスト）</option>
+                </select>
+            </div>
+            <div>
+                <label for="set-target" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">最重要目的</label>
+                <select id="set-target" class="w-full text-sm bg-sleep-900 text-white rounded-xl border border-white/10 p-2.5 focus:outline-none focus:border-indigo-500 font-semibold">
+                    <option value="recovery">🌱 疲労回復・ストレス解消</option>
+                    <option value="study">📚 テスト勉強・集中力向上</option>
+                    <option value="deep">🌙 深部徐波（夜間の中途覚醒を防止）</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- API設定（アコーディオン） -->
+        <div class="border-b border-white/5 pb-4">
+            <button type="button" data-action="toggle-advanced" aria-expanded="false" aria-controls="advanced-settings-area" class="w-full flex justify-between items-center py-2 text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors focus:outline-none">
+                <span class="flex items-center gap-1.5 text-indigo-300">
+                    <i data-lucide="cpu" class="w-4 h-4"></i>
+                    上級者向けの接続設定（API連携）
+                </span>
+                <i id="advanced-chevron" data-lucide="chevron-down" class="w-4 h-4 transition-transform"></i>
+            </button>
+
+            <div id="advanced-settings-area" class="hidden space-y-3.5 mt-3 pt-3 border-t border-white/5 animate-fade-in">
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-bold text-slate-400">AI API 接続設定</span>
+                    <span id="api-status" class="text-[10px] font-bold text-slate-500">状態未確認</span>
+                </div>
+                <p class="text-[9px] text-amber-400/80 leading-relaxed">⚠️ APIキーはこの端末のブラウザ（localStorage）にのみ保存されます。共用端末では保存しないでください。</p>
+                <div>
+                    <label for="api-provider" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">プロバイダー</label>
+                    <select id="api-provider" class="w-full text-xs bg-sleep-950 text-white rounded-xl border border-white/10 p-2.5 focus:outline-none">
+                        <option value="openrouter" selected>OpenRouter (推奨)</option>
+                        <option value="gemini">Google Gemini</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="api-model" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">利用AIモデル</label>
+                    <select id="api-model" class="w-full text-xs bg-sleep-950 text-white rounded-xl border border-white/10 p-2.5 focus:outline-none font-mono"><!-- JSで動的生成 --></select>
+                </div>
+                <div id="custom-model-container" class="hidden">
+                    <label for="api-custom-model" class="block text-[10px] font-bold text-indigo-300 uppercase mb-1">カスタムモデルIDの手入力</label>
+                    <input id="api-custom-model" type="text" placeholder="openai/gpt-4o-mini など" class="w-full text-xs bg-sleep-950 text-slate-200 rounded-xl border border-indigo-500/40 p-2.5 focus:outline-none font-mono">
+                    <p class="text-[9px] text-slate-500 mt-1">※OpenRouterに登録されている正確なモデル名を入力してください。</p>
+                </div>
+                <div>
+                    <label for="api-baseurl" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">エンドポイントベースURL</label>
+                    <input id="api-baseurl" type="text" class="w-full text-xs bg-sleep-950 text-slate-300 rounded-xl border border-white/10 p-2.5 focus:outline-none font-mono" readonly>
+                </div>
+                <div>
+                    <label for="api-key" class="block text-[10px] font-bold text-slate-400 uppercase mb-1">APIキー</label>
+                    <input id="api-key" type="password" placeholder="APIキーを入力してください" autocomplete="off" class="w-full text-xs bg-sleep-950 text-white rounded-xl border border-white/10 p-2.5 focus:outline-none font-mono">
+                </div>
+
+                <div id="diagnosis-console" class="hidden bg-slate-900/90 border border-slate-700/50 p-3 rounded-2xl text-xs">
+                    <div class="flex items-center gap-1.5 font-bold text-rose-400 mb-1">
+                        <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                        <span>接続エラーの自動分析結果</span>
+                    </div>
+                    <p id="diagnosis-text" class="text-slate-300 leading-relaxed font-medium"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-action="test-connection" class="bg-indigo-950/80 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-900/40 text-xs font-bold py-2.5 rounded-xl transition-all min-h-[44px]">接続テスト</button>
+                    <button type="button" data-action="save-api" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition-all min-h-[44px]">設定を保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== マニュアル音響ミキサー・ボトムシート ==================== -->
+    <div id="bottom-sheet-overlay" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity" data-action="close-mixer"></div>
+    <div id="bottom-sheet" class="bottom-sheet fixed bottom-0 inset-x-0 z-50 glass-panel rounded-t-[32px] p-5 pb-8 max-w-md mx-auto flex flex-col gap-4 max-h-[85vh] overflow-y-auto no-scrollbar" role="dialog" aria-modal="true" aria-label="マニュアル音響調整パネル">
+        <div class="w-12 h-1.5 bg-white/20 rounded-full mx-auto -mt-1 cursor-grab touch-none" id="bottom-sheet-handle" aria-hidden="true"></div>
+
+        <div class="flex justify-between items-center">
+            <h3 class="text-sm font-bold uppercase tracking-widest text-indigo-300">マニュアル調整パネル</h3>
+            <button type="button" data-action="close-mixer" aria-label="閉じる" class="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- 脳波サポート -->
+        <div class="space-y-2">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-300">共鳴波サポートモード (9種類)</span>
+                <span id="manual-wave-tag" class="text-[10px] font-mono bg-indigo-950 border border-white/5 p-0.5 px-2 rounded text-indigo-300">深部共鳴波</span>
+            </div>
+            <div id="wave-mode-grid" class="grid grid-cols-3 gap-1.5 text-center" role="group" aria-label="共鳴波モード選択"><!-- JSで動的生成 --></div>
+            <input id="manual-wave-volume" type="range" min="0" max="1" step="0.05" value="0.15" aria-label="共鳴波の音量" class="w-full accent-indigo-400 bg-slate-700 appearance-none h-1.5 rounded">
+        </div>
+
+        <!-- 環境自然音ミキサー -->
+        <div class="space-y-2">
+            <span class="text-xs font-bold text-slate-300 block">環境自然音ミキサー (10音源)</span>
+            <div id="sound-mixer-list" class="space-y-2 max-h-[30vh] overflow-y-auto pr-1 no-scrollbar pb-4"><!-- JSで動的生成 --></div>
+        </div>
+    </div>
+
+    <!-- ナビゲーションバー -->
+    <nav id="main-nav" class="fixed bottom-0 left-0 right-0 glass-panel border-t border-white/5 z-40 max-w-md mx-auto rounded-t-3xl shadow-2xl" aria-label="メインナビゲーション">
+        <div class="grid grid-cols-3 h-20 px-2 items-center">
+            <button type="button" data-action="switch-tab" data-tab="home" class="nav-tab text-sleep-400 flex flex-col items-center justify-center" id="nav-home" aria-current="page">
+                <i data-lucide="house" class="w-5 h-5 mb-1 transition-transform active:scale-90 pointer-events-none"></i>
+                <span class="text-[10px] font-bold pointer-events-none">おやすみ</span>
+            </button>
+            <button type="button" data-action="switch-tab" data-tab="coach" class="nav-tab text-slate-400 hover:text-slate-200 flex flex-col items-center justify-center" id="nav-coach">
+                <i data-lucide="messages-square" class="w-5 h-5 mb-1 transition-transform active:scale-90 pointer-events-none"></i>
+                <span class="text-[10px] font-bold pointer-events-none">AIチャット</span>
+            </button>
+            <button type="button" data-action="switch-tab" data-tab="analytics" class="nav-tab text-slate-400 hover:text-slate-200 flex flex-col items-center justify-center" id="nav-analytics">
+                <i data-lucide="chart-line" class="w-5 h-5 mb-1 transition-transform active:scale-90 pointer-events-none"></i>
+                <span class="text-[10px] font-bold pointer-events-none">睡眠分析</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- トースト -->
+    <div id="toast-container" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] flex flex-col gap-2 pointer-events-none w-full max-w-[320px] px-4" aria-live="polite"></div>
+
+    <!-- アプリケーションスクリプト（依存順） -->
+    <script src="js/config.js" defer></script>
+    <script src="js/audio-engine.js" defer></script>
+    <script src="js/app.js" defer></script>
+</body>
+</html>

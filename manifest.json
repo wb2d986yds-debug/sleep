@@ -1,0 +1,18 @@
+{
+  "name": "SomnAI - AI Sleep Partner",
+  "short_name": "SomnAI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "description": "AIがあなたの睡眠を自律調律するプレミアム睡眠パートナー",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23000000'/><circle cx='256' cy='256' r='140' fill='none' stroke='%237c8ef2' stroke-width='12' opacity='0.3'/><circle cx='256' cy='256' r='165' fill='none' stroke='%237c8ef2' stroke-width='12' opacity='0.12'/><path d='M210 220C210 285 263 338 328 338C338 285 295 220 210 220Z' fill='%237c8ef2'/></svg>",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
